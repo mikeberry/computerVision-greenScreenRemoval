@@ -10,8 +10,8 @@ def render_preview():
     global selected_value
     global tolerance_level
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    lower_hue = max(selected_hue - tolerance_level / 100 * 20,0)
-    upper_hue = min(selected_hue + tolerance_level / 100 * 20,255)
+    lower_hue = max(selected_hue - tolerance_level / 100 * 30,0)
+    upper_hue = min(selected_hue + tolerance_level / 100 * 30,255)
     lower_value = max(selected_value - 100,0)
     upper_value = min(selected_value + 100,255)
     lower_saturation = max(selected_value - 50,0)
@@ -47,9 +47,9 @@ def select_background_color(action, x, y, flags, userdata):
         print("Hello")
         hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         h, s, v = cv2.split(hsv_frame)
-        selected_hue = h[y, x]
-        selected_saturation = s[y, x]
-        selected_value = s[y, x]
+        selected_hue = np.mean(h[y-10:y+10, x-10:x+10])
+        selected_saturation = np.mean(s[y-10:y+10, x-10:x+10])
+        selected_value = np.mean(v[y-10:y+10, x-10:x+10])
         render_preview()
 
 
