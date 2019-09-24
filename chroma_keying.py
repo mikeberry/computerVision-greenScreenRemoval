@@ -9,11 +9,6 @@ def render_preview():
     global selected_saturation
     global selected_value
     global tolerance_level
-    # First create the image with alpha channel
-    rgba = cv2.cvtColor(frame, cv2.COLOR_RGB2RGBA)
-
-    # Then assign the mask to the last channel of the image
-    rgba[:, :, 3] = alpha_data
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     lower_hue = max(selected_hue - tolerance_level / 100 * 30, 0)
     upper_hue = min(selected_hue + tolerance_level / 100 * 30, 255)
@@ -29,8 +24,8 @@ def render_preview():
 
 
 def on_color_tolerance(tl):
-    global tolerance_level
-    tolerance_level = tl
+    global tolerance
+    tolerance = tl
     render_preview()
 
 
@@ -61,12 +56,12 @@ def select_background_color(action, x, y, flags, userdata):
 def generateTrimap(action, x, y, flags, userdata):
     global frame
     global trimap
+    global tolerance
     if action == cv2.EVENT_LBUTTONDOWN:
-        trimap = np.ones(frame.shape[0:2])*127
+        trimap = np.ones(frame.shape[0:2]) * 127
         ib, ig, ir = cv2.split(frame)
         backgroundBGR = frame[y, x, :]
         print(backgroundBGR)
-        tolerance = 0
         bb = np.where((ib <= backgroundBGR[0] + tolerance) & (ib >= backgroundBGR[0] - tolerance), 1, 0)
         bg = np.where((ig <= backgroundBGR[1] + tolerance) & (ig >= backgroundBGR[1] - tolerance), 1, 0)
         br = np.where((ir <= backgroundBGR[2] + tolerance) & (ir >= backgroundBGR[2] - tolerance), 1, 0)
@@ -75,37 +70,48 @@ def generateTrimap(action, x, y, flags, userdata):
         backgroundMask = cv2.morphologyEx(backgroundMask, cv2.MORPH_CLOSE, kernel)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
         backgroundMask = cv2.morphologyEx(backgroundMask, cv2.MORPH_OPEN, kernel, iterations=4)
-        # backgroundMask = cv2.morphologyEx(backgroundMask, cv2.MORPH_OPEN, kernel)
-        # backgroundMask = cv2.morphologyEx(backgroundMask, cv2.MORPH_OPEN, kernel)
-        # backgroundMask = cv2.morphologyEx(backgroundMask, cv2.MORPH_OPEN, kernel)
         foregroundMask = np.where(backgroundMask == 1, 0, 1).astype(np.uint8)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
         foregroundMask = cv2.erode(foregroundMask, kernel, iterations=3)
-        trimap = np.where(backgroundMask,0,trimap)
-        trimap = np.where(foregroundMask,255,trimap)
+        trimap = np.where(backgroundMask, 0, trimap)
+        trimap = np.where(foregroundMask, 255, trimap)
         trimap = trimap.astype(np.uint8)
 
         alphaMask = np.zeros(trimap.shape)
 
-        meanBackground = [19, 255, 69]
-        print(foregroundMask.shape)
-        print(frame.shape)
         maskedForeground = cv2.multiply(frame, cv2.merge((foregroundMask, foregroundMask, foregroundMask)))
-        # print(maskedForeground)
-        sumOfFgpix = np.sum(foregroundMask)
-        mfB, mfG, mfR = cv2.split(maskedForeground)
-        meanForeground = [np.sum(mfB) / sumOfFgpix, np.sum(mfG) / sumOfFgpix, np.sum(mfR) / sumOfFgpix]
-        meanForeground = np.asarray(meanForeground).astype(np.uint8)
-        print(meanForeground)
+        maskedBackground = cv2.multiply(frame, cv2.merge((backgroundMask, backgroundMask, backgroundMask)))
 
-        for y in range(0,trimap.shape[0]):
-            for x in range(0,trimap.shape[1]):
-                if trimap[y,x] == 255:
-                    alphaMask[y,x] = 255
-                elif trimap[y,x] == 127:
-                    print("yay 127")
-                    imageColor = frame[y,x]
-                    alpha = np.dot((imageColor - meanBackground),(meanForeground-meanBackground))/(np.linalg.norm(meanForeground-meanBackground)**2)*255
+        for y in range(0, trimap.shape[0]):
+            for x in range(0, trimap.shape[1]):
+                if trimap[y, x] == 255:
+                    alphaMask[y, x] = 255
+                elif trimap[y, x] == 127:
+                    # meanBackground = [19, 255, 69]
+                    print(foregroundMask.shape)
+                    print(frame.shape)
+                    # print(maskedForeground)
+                    starty = 0 if y - 50 < 0 else y -50
+                    endy = trimap.shape[0]-1 if y + 50 >= trimap.shape[0] else y + 50
+                    startx = 0 if x -50 <0 else x -50
+                    endx = trimap.shape[1]-1 if x + 50 >= trimap.shape[1] else x + 50
+                    localMaskedForeground = maskedForeground[starty:endy,startx:endx]
+                    sumOfFgpix = np.sum(foregroundMask[starty:endy,startx:endx])
+                    mfB, mfG, mfR = cv2.split(localMaskedForeground)
+                    meanForeground = [np.sum(mfB) / sumOfFgpix, np.sum(mfG) / sumOfFgpix, np.sum(mfR) / sumOfFgpix]
+                    meanForeground = np.asarray(meanForeground).astype(np.uint8)
+
+                    localMaskedBackground = maskedBackground[starty:endy,startx:endx]
+                    sumOfBgpix = np.sum(backgroundMask[starty:endy, startx:endx])
+                    mbB, mbG, mbR = cv2.split(localMaskedBackground)
+                    meanBackground = [np.sum(mbB) / sumOfBgpix, np.sum(mbG) / sumOfBgpix, np.sum(mbR) / sumOfBgpix]
+                    meanBackground = np.asarray(meanBackground).astype(np.uint8)
+
+                    print(meanForeground)
+
+                    imageColor = frame[y, x]
+                    alpha = np.dot((imageColor - meanBackground), (meanForeground - meanBackground)) / (
+                            np.linalg.norm(meanForeground - meanBackground) ** 2) * 255
 
                     if alpha > 255:
                         alpha = 255
@@ -113,23 +119,24 @@ def generateTrimap(action, x, y, flags, userdata):
                         alpha = 0
                     alpha = round(alpha)
                     print(alpha)
-                    alphaMask[y,x] = alpha
+                    alphaMask[y, x] = alpha
         alphaMask = alphaMask.astype(np.uint8)
-        alphaMask3d = cv2.merge((alphaMask,alphaMask,alphaMask)).astype(np.float)
+        alphaMask3d = cv2.merge((alphaMask, alphaMask, alphaMask)).astype(np.float)
         print(alphaMask)
         cv2.namedWindow("trimap")
-        cv2.imshow("trimap", alphaMask)
+        cv2.imshow("trimap", trimap)
         cv2.namedWindow("result")
-        white = (np.ones(frame.shape)*255).astype(np.uint8)
-        show_background = cv2.add(cv2.multiply(white.astype(np.float),(1-alphaMask3d/255)),cv2.multiply(frame.astype(np.float),alphaMask3d/255))
-        bgra = cv2.cvtColor(frame,cv2.COLOR_BGR2BGRA)
-        bgra[:,:,3] = alphaMask
+        white = (np.ones(frame.shape) * 255).astype(np.uint8)
+        show_background = cv2.add(cv2.multiply(white.astype(np.float), (1 - alphaMask3d / 255)),
+                                  cv2.multiply(frame.astype(np.float), alphaMask3d / 255))
+        bgra = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
+        bgra[:, :, 3] = alphaMask
 
-        cv2.imshow("result",show_background.astype(np.uint8))
+        cv2.imshow("result", show_background.astype(np.uint8))
         cv2.waitKey(0)
 
 
-cap = cv2.VideoCapture('greenscreen-asteroid.mp4')
+cap = cv2.VideoCapture('greenscreen-demo.mp4')
 cv2.namedWindow("Chroma_keying")
 # highgui function called when mouse events occur
 cv2.setMouseCallback("Chroma_keying", generateTrimap)
@@ -143,7 +150,7 @@ preview = frame.copy()
 selected_hue = 0
 selected_value = 0
 selected_saturation = 0
-tolerance_level = 0
+tolerance = 0
 trimap = np.zeros(frame.shape[0:2])
 
 while k != 27:
