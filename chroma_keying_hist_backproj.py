@@ -59,27 +59,10 @@ def generateTrimap(action, x, y, flags, userdata):
     global tolerance
     if action == cv2.EVENT_LBUTTONDOWN:
         trimap = np.ones(frame.shape[0:2]) * 127
-        # ib, ig, ir = cv2.split(frame)
-        # backgroundBGR = frame[y, x, :]
-        # print(backgroundBGR)
-        # bb = np.where((ib <= backgroundBGR[0] + tolerance) & (ib >= backgroundBGR[0] - tolerance), 1, 0)
-        # bg = np.where((ig <= backgroundBGR[1] + tolerance) & (ig >= backgroundBGR[1] - tolerance), 1, 0)
-        # br = np.where((ir <= backgroundBGR[2] + tolerance) & (ir >= backgroundBGR[2] - tolerance), 1, 0)
-        # backgroundMask = np.logical_or(np.logical_or(bb, bg), br).astype(np.uint8)
-        # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        # backgroundMask = cv2.morphologyEx(backgroundMask, cv2.MORPH_CLOSE, kernel)
-        # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
-        # backgroundMask = cv2.morphologyEx(backgroundMask, cv2.MORPH_OPEN, kernel, iterations=4)
-        # foregroundMask = np.where(backgroundMask == 1, 0, 1).astype(np.uint8)
-        # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
-        # foregroundMask = cv2.erode(foregroundMask, kernel, iterations=3)
-        # trimap = np.where(backgroundMask, 0, trimap)
-        # trimap = np.where(foregroundMask, 255, trimap)
-        # trimap = trimap.astype(np.uint8)
 
         hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         backgroundHSV = hsv_frame[y, x, :]
-        print(frame[y, x, :])
+        print(backgroundHSV)
         iH, iS, iV = cv2.split(hsv_frame)
         hb = np.where((iH<= backgroundHSV[0]+tolerance) & (iH>= backgroundHSV[0]- tolerance),1,0)
         print(hb.shape)
@@ -105,66 +88,41 @@ def generateTrimap(action, x, y, flags, userdata):
 
         maskedForeground = cv2.multiply(frame, cv2.merge((foregroundMask, foregroundMask, foregroundMask)))
         maskedBackground = cv2.multiply(frame, cv2.merge((backgroundMask, backgroundMask, backgroundMask)))
-
-        for y in range(0, trimap.shape[0]):
-            for x in range(0, trimap.shape[1]):
-                if trimap[y, x] == 255:
-                    alphaMask[y, x] = 255
-                elif trimap[y, x] == 127:
-                    # meanBackground = [19, 255, 69]
-                    # print(foregroundMask.shape)
-                    # print(frame.shape)
-                    # print(maskedForeground)
-                    starty = 0 if y - 60 < 0 else y -60
-                    endy = trimap.shape[0]-1 if y + 60 >= trimap.shape[0] else y + 60
-                    startx = 0 if x -60 <0 else x -60
-                    endx = trimap.shape[1]-1 if x + 60 >= trimap.shape[1] else x + 60
-                    localMaskedForeground = maskedForeground[starty:endy,startx:endx]
-                    sumOfFgpix = np.sum(foregroundMask[starty:endy,startx:endx])
-                    mfB, mfG, mfR = cv2.split(localMaskedForeground)
-                    meanForeground = [np.sum(mfB) / sumOfFgpix, np.sum(mfG) / sumOfFgpix, np.sum(mfR) / sumOfFgpix]
-                    meanForeground = np.asarray(meanForeground).astype(np.uint8)
-
-                    localMaskedBackground = maskedBackground[starty:endy,startx:endx]
-                    sumOfBgpix = np.sum(backgroundMask[starty:endy, startx:endx])
-                    mbB, mbG, mbR = cv2.split(localMaskedBackground)
-                    meanBackground = [np.sum(mbB) / sumOfBgpix, np.sum(mbG) / sumOfBgpix, np.sum(mbR) / sumOfBgpix]
-                    meanBackground = np.asarray(meanBackground).astype(np.uint8)
-
-                    # print(meanForeground)
-                    # print(meanBackground)
-
-                    imageColorLin = frame[y, x].astype(np.float)/(255)
-                    meanBackgroundLin = meanBackground.astype(np.float)/(255)
-                    meanForegroundLin = meanForeground.astype(np.float)/(255)
-                    # alpha = np.dot((np.abs(imageColorLin - meanBackgroundLin)), (np.abs(meanForegroundLin - meanBackgroundLin))).astype(float) / (
-                    #         np.linalg.norm(meanForegroundLin - meanBackgroundLin).astype(float) ** 2)
-                    gHist, _ = np.histogram(np.random.normal(191, 20, 1000), bins=256, density=True)
-                    # print(gHist)
-                    alpha = 1 - sum(gHist[0:frame[y, x][1]])
-                    if alpha > 0.8:
-                        alpha = 1.0
-                    elif alpha < 0.3:
-                        alpha = 0.0
-                    alpha = alpha * 255
-                    if alpha > 255:
-                        alpha = 255
-                    if alpha < 0:
-                        alpha = 0
-                    alpha = round(alpha)
-                    alpha = np.uint8(alpha)
-                    print(alpha)
-
-                    alphaMask[y, x] = alpha
-        alphaMask = alphaMask.astype(np.uint8)
+        # calculating object histogram
+        print("backgroundMask:")
+        print((foregroundMask * 255).astype(np.uint8).dtype)
+        print(backgroundMask.dtype)
+        # backgroundMask2d = cv2.merge((backgroundMask, backgroundMask))
+        roihist = cv2.calcHist(images=[hsv_frame], channels=[0, 1], mask=(backgroundMask * 255).astype(np.uint8), histSize=[180, 256], ranges=[0, 180, 0, 256])
+        print(roihist.shape)
+        hHist,_ = np.histogram(np.random.normal(54, 10, 1000),bins=256)
+        print(hHist)
+        sHist,_ = np.histogram(np.random.normal(176, 10, 1000),bins=256)
+        print(sHist)
+        print(hHist.shape)
+        roihist[0] = hHist
+        roihist[1] = sHist
+        print(np.max(iH))
+        print(np.min(iH))
+        print(np.max(iS))
+        print(np.min(iS))
+        # roihist = cv2.calcHist(images=[maskedBackground], channels=[0, 1], mask=None, histSize=[180, 256], ranges=[0, 180, 0, 256])
+        print(roihist.dtype)
+        print(roihist.shape)
+        print(roihist[0])
+        print(roihist[1])
+        cv2.normalize(roihist, roihist, 0, 255, cv2.NORM_MINMAX)
+        print(roihist[0])
+        print(roihist[1])
+        alphaMask = cv2.calcBackProject([hsv_frame], [0, 1], roihist, [0, 180, 0, 256], 1)
         alphaMask3d = cv2.merge((alphaMask, alphaMask, alphaMask)).astype(np.float)
         print(alphaMask)
         cv2.namedWindow("trimap")
-        cv2.imshow("trimap", trimap)
+        cv2.imshow("trimap", maskedForeground)
         cv2.namedWindow("result")
         white = (np.ones(frame.shape) * 255).astype(np.uint8)
-        show_background = cv2.add(cv2.multiply(white.astype(np.float), (1 - alphaMask3d / 255)),
-                                  cv2.multiply(frame.astype(np.float), alphaMask3d / 255))
+        show_background = cv2.add(cv2.multiply(white.astype(np.float), (alphaMask3d / 255)),
+                                  cv2.multiply(frame.astype(np.float), 1 - alphaMask3d / 255))
         bgra = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
         bgra[:, :, 3] = alphaMask
 
