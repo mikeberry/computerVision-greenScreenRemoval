@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
+import math
 
+def gaussian(x, mu, sigma):
+    return 1/(sigma * math.sqrt(2*math.pi))*math.exp(-1/2*math.pow((x-mu)/sigma,2))
 
 def render_preview():
     global frame
@@ -139,12 +142,24 @@ def generateTrimap(action, x, y, flags, userdata):
                     meanForegroundLin = meanForeground.astype(np.float)/(255)
                     # alpha = np.dot((np.abs(imageColorLin - meanBackgroundLin)), (np.abs(meanForegroundLin - meanBackgroundLin))).astype(float) / (
                     #         np.linalg.norm(meanForegroundLin - meanBackgroundLin).astype(float) ** 2)
-                    gHist, _ = np.histogram(np.random.normal(191, 20, 1000), bins=256, density=True)
+                    # gHist, _ = np.histogram(np.random.normal(meanForeground[1], 20, 1000), bins=256, density=True)
                     # print(gHist)
-                    alpha = 1 - sum(gHist[0:frame[y, x][1]])
-                    if alpha > 0.8:
+                    # alpha = 1 - sum(gHist[0:frame[y, x][1]])
+                    meanGForeBack = (meanBackground[1] + meanForeground[1])/2
+                    # alpha = 1-(gaussian(frame[y, x][1],meanBackground[1],5)/gaussian(meanBackground[1],meanBackground[1],5))
+                    #alpha = 1-(gaussian(frame[y, x][1],meanGForeBack,20)/gaussian(meanGForeBack,meanGForeBack,20))
+                    #Try the distance:
+                    distMean = abs(meanForeground[1].astype(int)- meanBackground[1].astype(int))
+                    distX = abs(frame[y, x][1].astype(int) - meanBackground[1].astype(int))
+
+                    gHist, _ = np.histogram(np.random.normal(distMean, 20, 1000), bins=256, density=True)
+                    #print(gHist)
+                    alpha = sum(gHist[0:math.floor(distX)])
+
+
+                    if alpha > 0.95:
                         alpha = 1.0
-                    elif alpha < 0.3:
+                    elif alpha < 0.05:
                         alpha = 0.0
                     alpha = alpha * 255
                     if alpha > 255:
@@ -154,6 +169,7 @@ def generateTrimap(action, x, y, flags, userdata):
                     alpha = round(alpha)
                     alpha = np.uint8(alpha)
                     print(alpha)
+                    #print(meanBackground)
 
                     alphaMask[y, x] = alpha
         alphaMask = alphaMask.astype(np.uint8)
