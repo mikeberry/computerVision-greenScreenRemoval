@@ -200,7 +200,7 @@ def generateTrimap(action, x, y, flags, userdata):
                     #alpha = sum(gHist[0:math.floor(distX)])
                     # 0.16 is the solution of solve(1/(1+exp(-(0-0.5)/s))<0.05)
                     sigma = 0.16 * softness_level/100
-                    alpha = logistic_cdf(distX, 0.5,0.1)
+                    alpha = logistic_cdf(distX, 0.5,sigma)
 
                     if alpha > 0.9:
                         alpha = 1.0
@@ -248,7 +248,7 @@ selected_hue = 0
 selected_value = 0
 selected_saturation = 0
 tolerance = 0
-softness_level = 0.0001
+softness_level = 1
 trimap = np.zeros(frame.shape[0:2])
 
 while k != 27:
