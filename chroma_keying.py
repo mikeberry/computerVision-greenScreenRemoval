@@ -152,14 +152,18 @@ def generateTrimap(action, x, y, flags, userdata):
                     # alpha = 1-(gaussian(frame[y, x][1],meanBackground[1],5)/gaussian(meanBackground[1],meanBackground[1],5))
                     #alpha = 1-(gaussian(frame[y, x][1],meanGForeBack,20)/gaussian(meanGForeBack,meanGForeBack,20))
                     #Try the distance:
-                    distMean = abs(meanForeground[1].astype(int)- meanBackground[1].astype(int))
-                    distX = abs(frame[y, x][1].astype(int) - meanBackground[1].astype(int))
+                    distMean = abs(math.pow(meanForeground[1].astype(np.float),2)- math.pow(meanBackground[1].astype(np.float),2))
+
+                    if distMean == 0:
+                        distMean = 0.1
+
+                    distX = abs(math.pow(frame[y, x][1].astype(np.float),2) - math.pow(meanBackground[1].astype(np.float),2))/distMean
 
                     #gHist, _ = np.histogram(np.random.normal(distMean, 20, 1000), bins=256, density=True)
                     #print(gHist)
                     #alpha = sum(gHist[0:math.floor(distX)])
 
-                    alpha = logistic_cdf(distX, distMean/2,5)
+                    alpha = logistic_cdf(distX, 0.5,0.1)
 
                     if alpha > 0.95:
                         alpha = 1.0
