@@ -137,6 +137,22 @@ def generateTrimap(action, x, y, flags, userdata):
                     meanBackground = [np.sum(mbB) / sumOfBgpix, np.sum(mbG) / sumOfBgpix, np.sum(mbR) / sumOfBgpix]
                     meanBackground = np.asarray(meanBackground).astype(np.uint8)
 
+                    # ONLY TAKE MEDIAN OF NON ZERO PIXELS!!! THE FOLLOWING DOES NOT WORK!!
+                    #medianBackground = []
+                    #print(maskedBackground[starty:endy, startx:endx,0].shape)
+                    #print(np.max(maskedBackground[starty:endy, startx:endx,0]))
+                    #medianBackground.append(np.median(maskedBackground[starty:endy, startx:endx,0]))
+                    #medianBackground.append(np.median(maskedBackground[starty:endy, startx:endx,1]))
+                    #medianBackground.append(np.median(maskedBackground[starty:endy, startx:endx,2]))
+                    #print(medianBackground)
+
+                    #medianForeground = []
+                    #print(maskedForeground[starty:endy, startx:endx].shape)
+                    #medianForeground.append(np.median(maskedForeground[starty:endy, startx:endx,0]))
+                    #medianForeground.append(np.median(maskedForeground[starty:endy, startx:endx,1]))
+                    #medianForeground.append(np.median(maskedForeground[starty:endy, startx:endx,2]))
+                    #print(medianForeground)
+                    #break
                     # print(meanForeground)
                     # print(meanBackground)
 
@@ -152,12 +168,28 @@ def generateTrimap(action, x, y, flags, userdata):
                     # alpha = 1-(gaussian(frame[y, x][1],meanBackground[1],5)/gaussian(meanBackground[1],meanBackground[1],5))
                     #alpha = 1-(gaussian(frame[y, x][1],meanGForeBack,20)/gaussian(meanGForeBack,meanGForeBack,20))
                     #Try the distance:
-                    distMean = abs(math.pow(meanForeground[1].astype(np.float),2)- math.pow(meanBackground[1].astype(np.float),2))
+                    distMeanB = abs(math.pow(meanForeground[0].astype(np.float),2)- math.pow(meanBackground[0].astype(np.float),2))
+                    distMeanG = abs(
+                        math.pow(meanForeground[1].astype(np.float), 2) - math.pow(meanBackground[1].astype(np.float),
+                                                                                   2))
+                    distMeanR = abs(
+                        math.pow(meanForeground[2].astype(np.float), 2) - math.pow(meanBackground[2].astype(np.float),
+                                                                                   2))
+                    distMean = math.sqrt(math.pow(distMeanB,2)+math.pow(distMeanG,2) + math.pow(distMeanR,2))
 
                     if distMean == 0:
                         distMean = 0.1
 
-                    distX = abs(math.pow(frame[y, x][1].astype(np.float),2) - math.pow(meanBackground[1].astype(np.float),2))/distMean
+                    distXB = abs(
+                        math.pow(frame[y, x][0].astype(np.float), 2) - math.pow(meanBackground[0].astype(np.float),
+                                                                                2))
+                    distXG = abs(
+                        math.pow(frame[y, x][1].astype(np.float), 2) - math.pow(meanBackground[1].astype(np.float),
+                                                                                2))
+                    distXR = abs(
+                        math.pow(frame[y, x][2].astype(np.float), 2) - math.pow(meanBackground[2].astype(np.float),
+                                                                                2))
+                    distX = math.sqrt(math.pow(distXB,2)+math.pow(distXG,2)+math.pow(distXR,2))/distMean
 
                     #gHist, _ = np.histogram(np.random.normal(distMean, 20, 1000), bins=256, density=True)
                     #print(gHist)
@@ -165,9 +197,9 @@ def generateTrimap(action, x, y, flags, userdata):
 
                     alpha = logistic_cdf(distX, 0.5,0.1)
 
-                    if alpha > 0.95:
+                    if alpha > 0.9:
                         alpha = 1.0
-                    elif alpha < 0.05:
+                    elif alpha < 0.1:
                         alpha = 0.0
                     alpha = alpha * 255
                     if alpha > 255:
@@ -196,7 +228,7 @@ def generateTrimap(action, x, y, flags, userdata):
         cv2.waitKey(0)
 
 
-cap = cv2.VideoCapture('greenscreen-demo.mp4')
+cap = cv2.VideoCapture('greenscreen-asteroid.mp4')
 cv2.namedWindow("Chroma_keying")
 # highgui function called when mouse events occur
 cv2.setMouseCallback("Chroma_keying", generateTrimap)
