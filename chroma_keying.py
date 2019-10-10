@@ -5,6 +5,9 @@ import math
 def gaussian(x, mu, sigma):
     return 1/(sigma * math.sqrt(2*math.pi))*math.exp(-1/2*math.pow((x-mu)/sigma,2))
 
+def logistic_cdf(x, mu, sigma):
+    return 1/(1+math.exp(-(x-mu)/sigma))
+
 def render_preview():
     global frame
     global preview
@@ -152,10 +155,11 @@ def generateTrimap(action, x, y, flags, userdata):
                     distMean = abs(meanForeground[1].astype(int)- meanBackground[1].astype(int))
                     distX = abs(frame[y, x][1].astype(int) - meanBackground[1].astype(int))
 
-                    gHist, _ = np.histogram(np.random.normal(distMean, 20, 1000), bins=256, density=True)
+                    #gHist, _ = np.histogram(np.random.normal(distMean, 20, 1000), bins=256, density=True)
                     #print(gHist)
-                    alpha = sum(gHist[0:math.floor(distX)])
+                    #alpha = sum(gHist[0:math.floor(distX)])
 
+                    alpha = logistic_cdf(distX, distMean/2,5)
 
                     if alpha > 0.95:
                         alpha = 1.0
