@@ -15,28 +15,31 @@ def render_preview():
     global selected_saturation
     global selected_value
     global tolerance
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    #hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     lower_hue = max(selected_hue - tolerance / 100 * 30, 0)
     upper_hue = min(selected_hue + tolerance / 100 * 30, 255)
     lower_value = max(selected_value - 100, 0)
     upper_value = min(selected_value + 100, 255)
     lower_saturation = max(selected_value - 50, 0)
     upper_saturation = min(selected_value + 50, 255)
-    lower_key = np.array([lower_hue, lower_saturation, lower_value])
-    upper_key = np.array([upper_hue, upper_saturation, upper_value])
-    mask = cv2.inRange(hsv_frame, lower_key, upper_key)
-    preview = frame.copy()
-    preview[mask != 0] = np.array([0, 0, 0])
+    #lower_key = np.array([lower_hue, lower_saturation, lower_value])
+    #upper_key = np.array([upper_hue, upper_saturation, upper_value])
+    #mask = cv2.inRange(hsv_frame, lower_key, upper_key)
+    #preview = frame.copy()
+    #preview[mask != 0] = np.array([0, 0, 0])
 
 
 def on_color_tolerance(tl):
     global tolerance
     tolerance = tl
-    render_preview()
 
 
-def on_softness(softness_level):
-    print(softness_level)
+def on_softness(sl):
+    global softness_level
+    if(sl==0):
+        softness_level = 1
+    else:
+        softness_level = sl
 
 
 def on_color_cast_level(color_cast_level):
@@ -63,6 +66,7 @@ def generateTrimap(action, x, y, flags, userdata):
     global frame
     global trimap
     global tolerance
+    global softness_level
     if action == cv2.EVENT_LBUTTONDOWN:
         trimap = np.ones(frame.shape[0:2]) * 127
         # ib, ig, ir = cv2.split(frame)
@@ -194,7 +198,8 @@ def generateTrimap(action, x, y, flags, userdata):
                     #gHist, _ = np.histogram(np.random.normal(distMean, 20, 1000), bins=256, density=True)
                     #print(gHist)
                     #alpha = sum(gHist[0:math.floor(distX)])
-
+                    # 0.16 is the solution of solve(1/(1+exp(-(0-0.5)/s))<0.05)
+                    sigma = 0.16 * softness_level/100
                     alpha = logistic_cdf(distX, 0.5,0.1)
 
                     if alpha > 0.9:
@@ -243,6 +248,7 @@ selected_hue = 0
 selected_value = 0
 selected_saturation = 0
 tolerance = 0
+softness_level = 0.0001
 trimap = np.zeros(frame.shape[0:2])
 
 while k != 27:
