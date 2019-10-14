@@ -8,6 +8,30 @@ def gaussian(x, mu, sigma):
 def logistic_cdf(x, mu, sigma):
     return 1/(1+math.exp(-(x-mu)/sigma))
 
+def dist_rgb(c1, c2):
+    distB = abs(math.pow(c1[0].astype(np.float), 2) - math.pow(c2[0].astype(np.float), 2))
+    distG = abs(
+        math.pow(c1[1].astype(np.float), 2) - math.pow(c2[1].astype(np.float),
+                                                                   2))
+    distR = abs(
+        math.pow(c1[2].astype(np.float), 2) - math.pow(c2[2].astype(np.float),
+                                                                   2))
+    dist = math.sqrt(math.pow(distB, 2) + math.pow(distG, 2) + math.pow(distR, 2))
+    return dist
+
+def minDistColor(img, mask, referenceColor):
+    minDistance = 99999999999999999
+    minDistColor = referenceColor
+    for y in range(0, img.shape[0]):
+        for x in range(0, img.shape[1]):
+            if mask[y,x]>0:
+                dist = dist_rgb(img[y,x],referenceColor)
+                if dist < minDistance:
+                    minDistance = dist
+                    minDistColor = img[y,x]
+    return minDistColor
+
+
 def render_preview():
     global frame
     global preview
@@ -160,40 +184,44 @@ def generateTrimap(action, x, y, flags, userdata):
                     # print(meanForeground)
                     # print(meanBackground)
 
-                    imageColorLin = frame[y, x].astype(np.float)/(255)
-                    meanBackgroundLin = meanBackground.astype(np.float)/(255)
-                    meanForegroundLin = meanForeground.astype(np.float)/(255)
+                    #imageColorLin = frame[y, x].astype(np.float)/(255)
+                    #meanBackgroundLin = meanBackground.astype(np.float)/(255)
+                    #meanForegroundLin = meanForeground.astype(np.float)/(255)
                     # alpha = np.dot((np.abs(imageColorLin - meanBackgroundLin)), (np.abs(meanForegroundLin - meanBackgroundLin))).astype(float) / (
                     #         np.linalg.norm(meanForegroundLin - meanBackgroundLin).astype(float) ** 2)
                     # gHist, _ = np.histogram(np.random.normal(meanForeground[1], 20, 1000), bins=256, density=True)
                     # print(gHist)
                     # alpha = 1 - sum(gHist[0:frame[y, x][1]])
-                    meanGForeBack = (meanBackground[1] + meanForeground[1])/2
+                    #meanGForeBack = (meanBackground[1] + meanForeground[1])/2
                     # alpha = 1-(gaussian(frame[y, x][1],meanBackground[1],5)/gaussian(meanBackground[1],meanBackground[1],5))
                     #alpha = 1-(gaussian(frame[y, x][1],meanGForeBack,20)/gaussian(meanGForeBack,meanGForeBack,20))
                     #Try the distance:
-                    distMeanB = abs(math.pow(meanForeground[0].astype(np.float),2)- math.pow(meanBackground[0].astype(np.float),2))
-                    distMeanG = abs(
-                        math.pow(meanForeground[1].astype(np.float), 2) - math.pow(meanBackground[1].astype(np.float),
-                                                                                   2))
-                    distMeanR = abs(
-                        math.pow(meanForeground[2].astype(np.float), 2) - math.pow(meanBackground[2].astype(np.float),
-                                                                                   2))
-                    distMean = math.sqrt(math.pow(distMeanB,2)+math.pow(distMeanG,2) + math.pow(distMeanR,2))
+                    #distMeanB = abs(math.pow(meanForeground[0].astype(np.float),2)- math.pow(meanBackground[0].astype(np.float),2))
+                    #distMeanG = abs(
+                    #    math.pow(meanForeground[1].astype(np.float), 2) - math.pow(meanBackground[1].astype(np.float),
+                    #                                                               2))
+                    #distMeanR = abs(
+                    #    math.pow(meanForeground[2].astype(np.float), 2) - math.pow(meanBackground[2].astype(np.float),
+                    #                                                               2))
+                    #distMean = math.sqrt(math.pow(distMeanB,2)+math.pow(distMeanG,2) + math.pow(distMeanR,2))
+
+                    distMean = dist_rgb(meanForeground, meanBackground)
 
                     if distMean == 0:
                         distMean = 0.1
 
-                    distXB = abs(
-                        math.pow(frame[y, x][0].astype(np.float), 2) - math.pow(meanBackground[0].astype(np.float),
-                                                                                2))
-                    distXG = abs(
-                        math.pow(frame[y, x][1].astype(np.float), 2) - math.pow(meanBackground[1].astype(np.float),
-                                                                                2))
-                    distXR = abs(
-                        math.pow(frame[y, x][2].astype(np.float), 2) - math.pow(meanBackground[2].astype(np.float),
-                                                                                2))
-                    distX = math.sqrt(math.pow(distXB,2)+math.pow(distXG,2)+math.pow(distXR,2))/distMean
+                    #distXB = abs(
+                    #    math.pow(frame[y, x][0].astype(np.float), 2) - math.pow(meanBackground[0].astype(np.float),
+                    #                                                            2))
+                    #distXG = abs(
+                    #    math.pow(frame[y, x][1].astype(np.float), 2) - math.pow(meanBackground[1].astype(np.float),
+                    #                                                            2))
+                    #distXR = abs(
+                    #    math.pow(frame[y, x][2].astype(np.float), 2) - math.pow(meanBackground[2].astype(np.float),
+                    #                                                            2))
+                    #distX = math.sqrt(math.pow(distXB,2)+math.pow(distXG,2)+math.pow(distXR,2))/distMean
+
+                    distX = dist_rgb(frame[y,x],meanBackground)/distMean
 
                     #gHist, _ = np.histogram(np.random.normal(distMean, 20, 1000), bins=256, density=True)
                     #print(gHist)
@@ -202,13 +230,20 @@ def generateTrimap(action, x, y, flags, userdata):
                     sigma = 0.16 * softness_level/100
                     alpha = logistic_cdf(distX, 0.5,sigma)
 
-                    if alpha > 0.9:
-                        alpha = 1.0
-                    elif alpha < 0.1:
-                        alpha = 0.0
+                    #if(alpha<0.99):
+                    #    frame[y,x] = (alpha * meanForeground.astype(np.float) + (1-alpha)*frame[y,x].astype(np.float)).astype(np.uint8)
+
+                    #alphaMask[y, x] = alpha
+
+                    #if alpha > 0.95:
+                    #    alpha = 1.0
+                    #elif alpha < 0.1:
+                    #    alpha = 0.0
+                    #alpha = alpha * 255
+                    #if alpha > 255:
+                    #    alpha = 255
+
                     alpha = alpha * 255
-                    if alpha > 255:
-                        alpha = 255
                     if alpha < 0:
                         alpha = 0
                     alpha = round(alpha)
@@ -217,6 +252,22 @@ def generateTrimap(action, x, y, flags, userdata):
                     #print(meanBackground)
 
                     alphaMask[y, x] = alpha
+
+        highlyLikelyAlphaMask = np.where(alphaMask==255,1,0)
+        #highlyLikelyForeground = cv2.multiply(frame, cv2.merge((highlyLikelyAlphaMask, highlyLikelyAlphaMask, highlyLikelyAlphaMask)))
+        for y in range(0, alphaMask.shape[0]):
+            for x in range(0, alphaMask.shape[1]):
+                tmpAlpha = alphaMask[y, x].astype(np.float)/255
+                print(tmpAlpha)
+                if 0.99 > tmpAlpha > 0.05:
+                    starty = 0 if y - 60 < 0 else y -60
+                    endy = frame.shape[0]-1 if y + 60 >= frame.shape[0] else y + 60
+                    startx = 0 if x -60 <0 else x -60
+                    endx = frame.shape[1]-1 if x + 60 >= frame.shape[1] else x + 60
+
+                    #foregroundNeighborhood = highlyLikelyForeground[starty:endy, startx:endx]
+                    neighborhood = frame[starty:endy, startx:endx]
+                    frame[y, x] = minDistColor(neighborhood, foregroundMask[starty:endy, startx:endx], frame[y,x])
         alphaMask = alphaMask.astype(np.uint8)
         alphaMask3d = cv2.merge((alphaMask, alphaMask, alphaMask)).astype(np.float)
         print(alphaMask)
