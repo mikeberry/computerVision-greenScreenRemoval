@@ -59,7 +59,9 @@ def on_softness(sl):
         softness_level = sl
 
 
-def on_color_cast_level(color_cast_level):
+def on_color_cast_level(ccl):
+    global color_cast_level
+    color_cast_level = ccl
     print(color_cast_level)
 
 
@@ -112,8 +114,6 @@ def generateTrimap(action, x, y, flags, userdata):
 
         alphaMask = np.zeros(trimap.shape)
 
-        maskedForeground = cv2.multiply(frame, cv2.merge((foregroundMask, foregroundMask, foregroundMask)))
-        maskedBackground = cv2.multiply(frame, cv2.merge((backgroundMask, backgroundMask, backgroundMask)))
         outputFrame = frame.copy()
         for y in range(0, trimap.shape[0]):
             for x in range(0, trimap.shape[1]):
@@ -131,6 +131,7 @@ def generateTrimap(action, x, y, flags, userdata):
                     localBackgroundMask = localBackgroundMask.reshape((1,localBackgroundMask.shape[0],localBackgroundMask.shape[1]))
                     meanBackground = np.mean(frame[starty:endy,startx:endx][tuple(localBackgroundMask==1)].reshape(-1,3),axis=0).astype(np.uint8)
 
+                    # Try minimum euclidean distance between the two arrays (fg and bg)
                     distMean = dist_rgb(meanForeground, meanBackground)
 
                     if distMean == 0:
@@ -168,20 +169,6 @@ def generateTrimap(action, x, y, flags, userdata):
                     alphaMask[y, x] = alpha
 
         highlyLikelyAlphaMask = np.where(alphaMask==255,1,0)
-        #highlyLikelyForeground = cv2.multiply(frame, cv2.merge((highlyLikelyAlphaMask, highlyLikelyAlphaMask, highlyLikelyAlphaMask)))
-        # for y in range(0, alphaMask.shape[0]):
-        #     for x in range(0, alphaMask.shape[1]):
-        #         tmpAlpha = alphaMask[y, x].astype(np.float)/255
-        #         print(tmpAlpha)
-        #         if 0.99 > tmpAlpha > 0.05:
-        #             starty = 0 if y - 60 < 0 else y -60
-        #             endy = frame.shape[0]-1 if y + 60 >= frame.shape[0] else y + 60
-        #             startx = 0 if x -60 <0 else x -60
-        #             endx = frame.shape[1]-1 if x + 60 >= frame.shape[1] else x + 60
-        #
-        #             #foregroundNeighborhood = highlyLikelyForeground[starty:endy, startx:endx]
-        #             neighborhood = frame[starty:endy, startx:endx]
-        #             frame[y, x] = minDistColor(neighborhood, foregroundMask[starty:endy, startx:endx], frame[y,x])
         alphaMask = alphaMask.astype(np.uint8)
         alphaMask3d = cv2.merge((alphaMask, alphaMask, alphaMask)).astype(np.float)
         print(alphaMask)
@@ -189,6 +176,28 @@ def generateTrimap(action, x, y, flags, userdata):
         cv2.imshow("trimap", trimap)
         cv2.namedWindow("result")
         white = (np.ones(frame.shape) * 255).astype(np.uint8)
+
+        # pivot points for X-Coordinates
+        originalValue = np.array([0, 50, 100, 150, 200, 255])
+
+        fullRange = np.arange(0, 256)
+        color_cast_percentage = color_cast_level/100
+        gCurve = np.array([0,
+                           50-color_cast_percentage*30,
+                           100-color_cast_percentage*50,
+                           150-color_cast_percentage*40,
+                           200-color_cast_percentage*20,
+                           255])
+        gLUT = np.interp(fullRange, originalValue, gCurve)
+        gChannel = frame[:, :, 1]
+        gChannel = cv2.LUT(gChannel, gLUT)
+        frame[:, :, 1] = gChannel
+
+        # Create a LookUp Table
+        fullRange = np.arange(0, 256)
+        gLUT = np.interp(fullRange, originalValue, gCurve)
+
+
         show_background = cv2.add(cv2.multiply(white.astype(np.float), (1 - alphaMask3d / 255)),
                                   cv2.multiply(frame.astype(np.float), alphaMask3d / 255))
         bgra = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
@@ -198,7 +207,7 @@ def generateTrimap(action, x, y, flags, userdata):
         cv2.waitKey(0)
 
 
-cap = cv2.VideoCapture('greenscreen-asteroid.mp4')
+cap = cv2.VideoCapture('greenscreen-demo.mp4')
 cv2.namedWindow("Chroma_keying")
 # highgui function called when mouse events occur
 cv2.setMouseCallback("Chroma_keying", generateTrimap)
@@ -214,6 +223,7 @@ selected_value = 0
 selected_saturation = 0
 tolerance = 0
 softness_level = 1
+color_cast_level = 0
 trimap = np.zeros(frame.shape[0:2])
 
 while k != 27:
