@@ -38,27 +38,6 @@ def hasSimilarBgr(A, B):
     return np.any(np.logical_and(np.logical_and(match[0, :], match[1, :]), match[2, :]))
 
 
-def render_preview():
-    global frame
-    global preview
-    global selected_hue
-    global selected_saturation
-    global selected_value
-    global tolerance
-    # hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    lower_hue = max(selected_hue - tolerance / 100 * 30, 0)
-    upper_hue = min(selected_hue + tolerance / 100 * 30, 255)
-    lower_value = max(selected_value - 100, 0)
-    upper_value = min(selected_value + 100, 255)
-    lower_saturation = max(selected_value - 50, 0)
-    upper_saturation = min(selected_value + 50, 255)
-    # lower_key = np.array([lower_hue, lower_saturation, lower_value])
-    # upper_key = np.array([upper_hue, upper_saturation, upper_value])
-    # mask = cv2.inRange(hsv_frame, lower_key, upper_key)
-    # preview = frame.copy()
-    # preview[mask != 0] = np.array([0, 0, 0])
-
-
 def on_color_tolerance(tl):
     global tolerance
     tolerance = tl
@@ -90,7 +69,6 @@ def select_background_color(action, x, y, flags, userdata):
         selected_hue = np.mean(h[y - 10:y + 10, x - 10:x + 10])
         selected_saturation = np.mean(s[y - 10:y + 10, x - 10:x + 10])
         selected_value = np.mean(v[y - 10:y + 10, x - 10:x + 10])
-        render_preview()
 
 
 def generateTrimap(action, x, y, flags, userdata):
@@ -126,7 +104,6 @@ def generateTrimap(action, x, y, flags, userdata):
 
         alphaMask = np.zeros(trimap.shape)
 
-        outputFrame = frame.copy()
         for y in range(0, trimap.shape[0]):
             for x in range(0, trimap.shape[1]):
                 if trimap[y, x] == 255:
@@ -150,11 +127,8 @@ def generateTrimap(action, x, y, flags, userdata):
                         np.uint8)
 
                     # Try minimum euclidean distance between the two arrays (fg and bg)
-                    foregroundColors = frame[starty:endy, startx:endx][tuple(localForegroundMask == 1)].reshape(-1, 3)
+                    # foregroundColors = frame[starty:endy, startx:endx][tuple(localForegroundMask == 1)].reshape(-1, 3)
                     backgroundColors = frame[starty:endy, startx:endx][tuple(localBackgroundMask == 1)].reshape(-1, 3)
-                    print(foregroundColors.shape)
-                    print(frame[y, x])
-                    print(backgroundColors)
                     if hasSimilarBgr(frame[y, x].reshape(1, 3), backgroundColors):
                         print("continue")
                         alphaMask[y, x] = np.uint8(0)
@@ -175,14 +149,6 @@ def generateTrimap(action, x, y, flags, userdata):
                         neighborhood = frame[starty:endy, startx:endx]
                         frame[y, x] = minDistColor(neighborhood, foregroundMask[starty:endy, startx:endx], frame[y, x])
 
-                    # if alpha > 0.95:
-                    #    alpha = 1.0
-                    # elif alpha < 0.1:
-                    #    alpha = 0.0
-                    # alpha = alpha * 255
-                    # if alpha > 255:
-                    #    alpha = 255
-
                     alpha = alpha * 255
                     if alpha < 0:
                         alpha = 0
@@ -194,7 +160,7 @@ def generateTrimap(action, x, y, flags, userdata):
 
                     alphaMask[y, x] = alpha
 
-        highlyLikelyAlphaMask = np.where(alphaMask == 255, 1, 0)
+        # highlyLikelyAlphaMask = np.where(alphaMask == 255, 1, 0)
         alphaMask = alphaMask.astype(np.uint8)
         alphaMask3d = cv2.merge((alphaMask, alphaMask, alphaMask)).astype(np.float)
         print(alphaMask)
@@ -218,10 +184,6 @@ def generateTrimap(action, x, y, flags, userdata):
         gChannel = frame[:, :, 1]
         gChannel = cv2.LUT(gChannel, gLUT)
         frame[:, :, 1] = gChannel
-
-        # Create a LookUp Table
-        fullRange = np.arange(0, 256)
-        gLUT = np.interp(fullRange, originalValue, gCurve)
 
         show_background = cv2.add(cv2.multiply(white.astype(np.float), (1 - alphaMask3d / 255)),
                                   cv2.multiply(frame.astype(np.float), alphaMask3d / 255))
