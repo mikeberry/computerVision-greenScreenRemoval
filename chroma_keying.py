@@ -237,6 +237,7 @@ softness_level = 1
 color_cast_level = 0
 try:
     background_image = cv2.imread("background.jpg")
+    background_image = cv2.resize(background_image, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_AREA)
 except:
     print("could not find background.jpg. Assuming white background")
     background_image = white = (np.ones(frame.shape) * 255).astype(np.uint8)
