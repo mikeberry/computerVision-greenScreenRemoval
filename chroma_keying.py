@@ -64,9 +64,11 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
 
     alpha_mask = np.zeros(trimap.shape)
     progress_bar = ProgressBar(original_image.shape[0] * original_image.shape[1], 20)
+    progress = 0
     for y in range(0, trimap.shape[0]):
         for x in range(0, trimap.shape[1]):
-            progress_bar.update_progress_bar((y + 1) * (x + 1))
+            progress_bar.update_progress_bar(progress)
+            progress = progress + 1
             if trimap[y, x] == 255:
                 alpha_mask[y, x] = 255
             elif trimap[y, x] == 127:
