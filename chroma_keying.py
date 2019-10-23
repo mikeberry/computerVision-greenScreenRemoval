@@ -177,10 +177,11 @@ def convert_video(video, background_image, out_path):
         if ret:
             matted_image = generate_matted_image(frame, selected_hsv,
                                                  tolerance, background_image)
-            out.write(matted_image)
+            out.write(np.uint8(matted_image))
         else:
-            print("the end")
+            print("finished")
             break
+        i += 1
 
 
 def on_color_tolerance(tl):
@@ -199,7 +200,6 @@ def on_softness(sl):
 def on_color_cast_level(ccl):
     global color_cast_level
     color_cast_level = ccl
-    print(color_cast_level)
 
 
 def select_background_color(action, x, y, flags, userdata):
