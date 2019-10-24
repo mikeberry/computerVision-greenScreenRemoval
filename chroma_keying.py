@@ -62,71 +62,74 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
     trimap = np.where(foreground_mask, 255, trimap)
     trimap = trimap.astype(np.uint8)
 
-    alpha_mask = np.zeros(trimap.shape)
-    progress_bar = ProgressBar(original_image.shape[0] * original_image.shape[1], 20)
+    #alpha_mask = np.zeros(trimap.shape)
+    #alpha_mask np where trimap
+    alpha_mask = trimap.copy()
+    # foreground_neighborhoods =
+
+    ys, xs = np.where(trimap == 127)
+    progress_bar = ProgressBar(len(ys), 20)
     progress = 0
-    for y in range(0, trimap.shape[0]):
-        for x in range(0, trimap.shape[1]):
-            progress_bar.update_progress_bar(progress)
-            progress = progress + 1
-            if trimap[y, x] == 255:
-                alpha_mask[y, x] = 255
-            elif trimap[y, x] == 127:
-                start_y = 0 if y - 60 < 0 else y - 60
-                end_y = trimap.shape[0] - 1 if y + 60 >= trimap.shape[0] else y + 60
-                start_x = 0 if x - 60 < 0 else x - 60
-                end_x = trimap.shape[1] - 1 if x + 60 >= trimap.shape[1] else x + 60
-                local_foreground_mask = foreground_mask[start_y:end_y, start_x:end_x]
-                local_foreground_mask = local_foreground_mask.reshape(
-                    (1, local_foreground_mask.shape[0], local_foreground_mask.shape[1]))
-                mean_foreground = np.mean(
-                    original_image[start_y:end_y, start_x:end_x][tuple(local_foreground_mask == 1)].reshape(-1, 3),
-                    axis=0).astype(
-                    np.uint8)
-                local_background_mask = background_mask[start_y:end_y, start_x:end_x]
-                local_background_mask = local_background_mask.reshape(
-                    (1, local_background_mask.shape[0], local_background_mask.shape[1]))
-                mean_background = np.mean(
-                    original_image[start_y:end_y, start_x:end_x][tuple(local_background_mask == 1)].reshape(-1, 3),
-                    axis=0).astype(
-                    np.uint8)
+    for i in range(0,len(ys)):
+        x = xs[i]
+        y = ys[i]
+        progress_bar.update_progress_bar(progress)
+        progress = progress + 1
+        start_y = 0 if y - 60 < 0 else y - 60
+        end_y = trimap.shape[0] - 1 if y + 60 >= trimap.shape[0] else y + 60
+        start_x = 0 if x - 60 < 0 else x - 60
+        end_x = trimap.shape[1] - 1 if x + 60 >= trimap.shape[1] else x + 60
+        local_foreground_mask = foreground_mask[start_y:end_y, start_x:end_x]
+        local_foreground_mask = local_foreground_mask.reshape(
+            (1, local_foreground_mask.shape[0], local_foreground_mask.shape[1]))
+        mean_foreground = np.mean(
+            original_image[start_y:end_y, start_x:end_x][tuple(local_foreground_mask == 1)].reshape(-1, 3),
+            axis=0).astype(
+            np.uint8)
+        local_background_mask = background_mask[start_y:end_y, start_x:end_x]
+        local_background_mask = local_background_mask.reshape(
+            (1, local_background_mask.shape[0], local_background_mask.shape[1]))
+        mean_background = np.mean(
+            original_image[start_y:end_y, start_x:end_x][tuple(local_background_mask == 1)].reshape(-1, 3),
+            axis=0).astype(
+            np.uint8)
 
-                # Try minimum euclidean distance between the two arrays (fg and bg)
-                # foregroundColors = frame[start_y:end_y, start_x:end_x][tuple(local_foreground_mask == 1)].reshape(-1, 3)
-                background_colors = original_image[start_y:end_y, start_x:end_x][
-                    tuple(local_background_mask == 1)].reshape(-1,
-                                                               3)
-                if has_similar_bgr(original_image[y, x].reshape(1, 3), background_colors):
-                    # print("continue")
-                    alpha_mask[y, x] = np.uint8(0)
-                    continue
+        # Try minimum euclidean distance between the two arrays (fg and bg)
+        # foregroundColors = frame[start_y:end_y, start_x:end_x][tuple(local_foreground_mask == 1)].reshape(-1, 3)
+        background_colors = original_image[start_y:end_y, start_x:end_x][
+            tuple(local_background_mask == 1)].reshape(-1,
+                                                       3)
+        if has_similar_bgr(original_image[y, x].reshape(1, 3), background_colors):
+            # print("continue")
+            alpha_mask[y, x] = np.uint8(0)
+            continue
 
-                dist_mean = dist_rgb(mean_foreground, mean_background)
+        dist_mean = dist_rgb(mean_foreground, mean_background)
 
-                if dist_mean == 0:
-                    dist_mean = 0.1
+        if dist_mean == 0:
+            dist_mean = 0.1
 
-                dist_x = dist_rgb(original_image[y, x], mean_background) / dist_mean
+        dist_x = dist_rgb(original_image[y, x], mean_background) / dist_mean
 
-                # 0.16 is the solution of solve(1/(1+exp(-(0-0.5)/s))<0.05)
-                sigma = 0.16 * softness_level / 100
-                alpha = logistic_cdf(dist_x, 0.5, sigma)
-                if 0.99 > alpha > 0.05:
-                    # foregroundNeighborhood = highlyLikelyForeground[start_y:end_y, start_x:end_x]
-                    neighborhood = original_image[start_y:end_y, start_x:end_x]
-                    original_image[y, x] = min_dist_color(neighborhood, foreground_mask[start_y:end_y, start_x:end_x],
-                                                          original_image[y, x])
+        # 0.16 is the solution of solve(1/(1+exp(-(0-0.5)/s))<0.05)
+        sigma = 0.16 * softness_level / 100
+        alpha = logistic_cdf(dist_x, 0.5, sigma)
+        if 0.99 > alpha > 0.05:
+            # foregroundNeighborhood = highlyLikelyForeground[start_y:end_y, start_x:end_x]
+            neighborhood = original_image[start_y:end_y, start_x:end_x]
+            original_image[y, x] = min_dist_color(neighborhood, foreground_mask[start_y:end_y, start_x:end_x],
+                                                  original_image[y, x])
 
-                alpha = alpha * 255
-                if alpha < 0:
-                    alpha = 0
-                elif alpha > 255:
-                    alpha = 255
-                alpha = round(alpha)
-                alpha = np.uint8(alpha)
-                # print(alpha)
+        alpha = alpha * 255
+        if alpha < 0:
+            alpha = 0
+        elif alpha > 255:
+            alpha = 255
+        alpha = round(alpha)
+        alpha = np.uint8(alpha)
+        # print(alpha)
 
-                alpha_mask[y, x] = alpha
+        alpha_mask[y, x] = alpha
 
     # highlyLikelyAlphaMask = np.where(alpha_mask == 255, 1, 0)
     alpha_mask = alpha_mask.astype(np.uint8)
