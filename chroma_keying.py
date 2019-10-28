@@ -19,8 +19,10 @@ def dist_rgb(c1, c2):
 def min_dist_color(img, mask, reference_color):
     # print(mask.shape)
     # print(img.shape)
-    mask = mask.reshape((1, mask.shape[0], mask.shape[1]))
+    # mask = mask.reshape((1, mask.shape[0], mask.shape[1]))
     arr = img[tuple(mask == 1)]
+    if len(arr) == 0:
+        return reference_color
     diff = np.power(arr.astype(np.float), 2) - np.power(reference_color.astype(np.float), 2)
     minArg = np.argmin(np.power(np.power(diff[:, 0], 2) + np.power(diff[:, 1], 2) + np.power(diff[:, 2], 2), 1 / 4))
     return arr[minArg]
@@ -46,7 +48,7 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
     i_h, i_s, i_v = cv2.split(hsv_frame)
     hb = np.where((i_h <= selected_background_hsv[0] + tolerance) & (i_h >= selected_background_hsv[0] - tolerance), 1,
                   0)
-    sb = np.where(i_s >= 150, 1, 0)
+    sb = np.where(i_s >= 120, 1, 0)
     background_mask = np.logical_and(hb, sb).astype(np.uint8)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     background_mask = cv2.morphologyEx(background_mask, cv2.MORPH_CLOSE, kernel)
@@ -57,49 +59,60 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
     foreground_mask = cv2.morphologyEx(foreground_mask, cv2.MORPH_OPEN, kernel, iterations=4)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     foreground_mask = cv2.erode(foreground_mask, kernel, iterations=8)
-    background_mask = cv2.erode(background_mask, kernel, iterations=8)
+    background_mask = cv2.erode(background_mask, kernel, iterations=12)
     trimap = np.where(background_mask, 0, trimap)
     trimap = np.where(foreground_mask, 255, trimap)
     trimap = trimap.astype(np.uint8)
+    # TODO add  pixels with the most common background colors to background
+    background_colors, counts, = np.unique(frame[tuple(background_mask.reshape(1,background_mask.shape[0], background_mask.shape[1]) == 1)], axis=0, return_counts=True)
+    background_colors = background_colors[tuple(counts.reshape(1,-1)>10000)]
+    counts = counts[tuple(counts.reshape(1,-1)>10000)]
+    print(background_colors)
+    print(counts)
+    print(background_colors.shape)
+    print(counts.shape)
+    match = np.array([np.in1d(frame[:,:, 0], background_colors[:, 0]),
+                      np.in1d(frame[:,:, 1], background_colors[:, 1]),
+                      np.in1d(frame[:,:, 2], background_colors[:, 2])])
+    mask = np.logical_and(np.logical_and(match[0, :], match[1, :]), match[2, :])
+    mask = mask.reshape((frame.shape[0],frame.shape[1]))
+    background_mask = np.logical_or(background_mask, mask)
+    trimap = np.where(mask, 0, trimap)
 
-    #alpha_mask = np.zeros(trimap.shape)
-    #alpha_mask np where trimap
     alpha_mask = trimap.copy()
-    # foreground_neighborhoods =
 
     ys, xs = np.where(trimap == 127)
     progress_bar = ProgressBar(len(ys), 20)
     progress = 0
+    h = trimap.shape[0]
+    w = trimap.shape[1]
     for i in range(0,len(ys)):
         x = xs[i]
         y = ys[i]
         progress_bar.update_progress_bar(progress)
         progress = progress + 1
         start_y = 0 if y - 60 < 0 else y - 60
-        end_y = trimap.shape[0] - 1 if y + 60 >= trimap.shape[0] else y + 60
+        end_y = h if y + 60 >= h else y + 60
         start_x = 0 if x - 60 < 0 else x - 60
-        end_x = trimap.shape[1] - 1 if x + 60 >= trimap.shape[1] else x + 60
+        end_x = w if x + 60 >= w else x + 60
+        local_w = end_x - start_x
+        local_h = end_y - start_y
+        neighborhood = original_image[start_y:end_y, start_x:end_x]
         local_foreground_mask = foreground_mask[start_y:end_y, start_x:end_x]
-        local_foreground_mask = local_foreground_mask.reshape(
-            (1, local_foreground_mask.shape[0], local_foreground_mask.shape[1]))
+        local_foreground_mask = local_foreground_mask.reshape((1, local_h, local_w))
         mean_foreground = np.mean(
-            original_image[start_y:end_y, start_x:end_x][tuple(local_foreground_mask == 1)].reshape(-1, 3),
-            axis=0).astype(
-            np.uint8)
+            neighborhood[tuple(local_foreground_mask == 1)].reshape(-1, 3),
+            axis=0).astype(np.uint8)
         local_background_mask = background_mask[start_y:end_y, start_x:end_x]
-        local_background_mask = local_background_mask.reshape(
-            (1, local_background_mask.shape[0], local_background_mask.shape[1]))
+        local_background_mask = local_background_mask.reshape((1, local_h, local_w))
         mean_background = np.mean(
-            original_image[start_y:end_y, start_x:end_x][tuple(local_background_mask == 1)].reshape(-1, 3),
-            axis=0).astype(
-            np.uint8)
+            neighborhood[tuple(local_background_mask == 1)].reshape(-1, 3),
+            axis=0).astype(np.uint8)
 
         # Try minimum euclidean distance between the two arrays (fg and bg)
         # foregroundColors = frame[start_y:end_y, start_x:end_x][tuple(local_foreground_mask == 1)].reshape(-1, 3)
-        background_colors = original_image[start_y:end_y, start_x:end_x][
-            tuple(local_background_mask == 1)].reshape(-1,
-                                                       3)
-        if has_similar_bgr(original_image[y, x].reshape(1, 3), background_colors):
+        local_background_colors = neighborhood[tuple(local_background_mask == 1)].reshape(-1,3)
+        if has_similar_bgr(original_image[y, x].reshape(1, 3), local_background_colors):
             # print("continue")
             alpha_mask[y, x] = np.uint8(0)
             continue
@@ -116,8 +129,8 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
         alpha = logistic_cdf(dist_x, 0.5, sigma)
         if 0.99 > alpha > 0.05:
             # foregroundNeighborhood = highlyLikelyForeground[start_y:end_y, start_x:end_x]
-            neighborhood = original_image[start_y:end_y, start_x:end_x]
-            original_image[y, x] = min_dist_color(neighborhood, foreground_mask[start_y:end_y, start_x:end_x],
+
+            original_image[y, x] = min_dist_color(neighborhood, local_foreground_mask,
                                                   original_image[y, x])
 
         alpha = alpha * 255
