@@ -23,8 +23,12 @@ def min_dist_color(img, mask, reference_color):
     arr = img[tuple(mask == 1)]
     if len(arr) == 0:
         return reference_color
+    arr = np.unique(arr, axis=0)
     diff = np.power(arr.astype(np.float), 2) - np.power(reference_color.astype(np.float), 2)
-    minArg = np.argmin(np.power(np.power(diff[:, 0], 2) + np.power(diff[:, 1], 2) + np.power(diff[:, 2], 2), 1 / 4))
+    # the corrected distance would be:
+    # dist = math.pow(math.pow(dist_b, 2) + math.pow(dist_g, 2) + math.pow(dist_r, 2), 1 / 4)
+    # however the power 1/4 is not required to find the smallest number
+    minArg = np.argmin(np.power(diff[:, 0], 2) + np.power(diff[:, 1], 2) + np.power(diff[:, 2], 2))
     return arr[minArg]
 
 
@@ -41,13 +45,18 @@ def has_similar_bgr(A, B):
     return np.any(np.logical_and(np.logical_and(match[0, :], match[1, :]), match[2, :]))
 
 
-def generate_matted_image(original_image, selected_background_hsv, tolerance, new_background_image):
+def generate_matted_image(original_image, selected_background_hsvs, tolerance, new_background_image):
+    duplicate_image = original_image.copy()
     print("generate_matted_image")
     trimap = np.ones(original_image.shape[0:2]) * 127
     hsv_frame = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
     i_h, i_s, i_v = cv2.split(hsv_frame)
-    hb = np.where((i_h <= selected_background_hsv[0] + tolerance) & (i_h >= selected_background_hsv[0] - tolerance), 1,
-                  0)
+    hb = np.zeros((frame.shape[0], frame.shape[1]))
+    for selected_background_hsv in selected_background_hsvs:
+        print(selected_background_hsv)
+        hb = np.logical_or(hb, np.where(
+            (i_h <= selected_background_hsv[0] + tolerance) & (i_h >= selected_background_hsv[0] - tolerance), 1,
+            0))
     sb = np.where(i_s >= 120, 1, 0)
     background_mask = np.logical_and(hb, sb).astype(np.uint8)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
@@ -64,18 +73,20 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
     trimap = np.where(foreground_mask, 255, trimap)
     trimap = trimap.astype(np.uint8)
     # TODO add  pixels with the most common background colors to background
-    background_colors, counts, = np.unique(frame[tuple(background_mask.reshape(1,background_mask.shape[0], background_mask.shape[1]) == 1)], axis=0, return_counts=True)
-    background_colors = background_colors[tuple(counts.reshape(1,-1)>10000)]
-    counts = counts[tuple(counts.reshape(1,-1)>10000)]
+    background_colors, counts, = np.unique(
+        frame[tuple(background_mask.reshape(1, background_mask.shape[0], background_mask.shape[1]) == 1)], axis=0,
+        return_counts=True)
+    background_colors = background_colors[tuple(counts.reshape(1, -1) > 10000)]
+    counts = counts[tuple(counts.reshape(1, -1) > 10000)]
     print(background_colors)
     print(counts)
     print(background_colors.shape)
     print(counts.shape)
-    match = np.array([np.in1d(frame[:,:, 0], background_colors[:, 0]),
-                      np.in1d(frame[:,:, 1], background_colors[:, 1]),
-                      np.in1d(frame[:,:, 2], background_colors[:, 2])])
+    match = np.array([np.in1d(frame[:, :, 0], background_colors[:, 0]),
+                      np.in1d(frame[:, :, 1], background_colors[:, 1]),
+                      np.in1d(frame[:, :, 2], background_colors[:, 2])])
     mask = np.logical_and(np.logical_and(match[0, :], match[1, :]), match[2, :])
-    mask = mask.reshape((frame.shape[0],frame.shape[1]))
+    mask = mask.reshape((frame.shape[0], frame.shape[1]))
     background_mask = np.logical_or(background_mask, mask)
     trimap = np.where(mask, 0, trimap)
 
@@ -86,7 +97,8 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
     progress = 0
     h = trimap.shape[0]
     w = trimap.shape[1]
-    for i in range(0,len(ys)):
+    print("softness level:" + str(softness_level))
+    for i in range(0, len(ys)):
         x = xs[i]
         y = ys[i]
         progress_bar.update_progress_bar(progress)
@@ -111,7 +123,7 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
 
         # Try minimum euclidean distance between the two arrays (fg and bg)
         # foregroundColors = frame[start_y:end_y, start_x:end_x][tuple(local_foreground_mask == 1)].reshape(-1, 3)
-        local_background_colors = neighborhood[tuple(local_background_mask == 1)].reshape(-1,3)
+        local_background_colors = neighborhood[tuple(local_background_mask == 1)].reshape(-1, 3)
         if has_similar_bgr(original_image[y, x].reshape(1, 3), local_background_colors):
             # print("continue")
             alpha_mask[y, x] = np.uint8(0)
@@ -130,8 +142,8 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
         if 0.99 > alpha > 0.05:
             # foregroundNeighborhood = highlyLikelyForeground[start_y:end_y, start_x:end_x]
 
-            original_image[y, x] = min_dist_color(neighborhood, local_foreground_mask,
-                                                  original_image[y, x])
+            duplicate_image[y, x] = min_dist_color(neighborhood, local_foreground_mask,
+                                                   original_image[y, x])
 
         alpha = alpha * 255
         if alpha < 0:
@@ -164,19 +176,19 @@ def generate_matted_image(original_image, selected_background_hsv, tolerance, ne
                         200 - color_cast_percentage * 20,
                         255])
     g_lut = np.interp(full_range, original_value, g_curve)
-    g_channel = original_image[:, :, 1]
+    g_channel = duplicate_image[:, :, 1]
     g_channel = cv2.LUT(g_channel, g_lut)
-    original_image[:, :, 1] = g_channel
+    duplicate_image[:, :, 1] = g_channel
 
     result = cv2.add(cv2.multiply(new_background_image.astype(np.float), (1 - alpha_mask3d / 255)),
-                     cv2.multiply(original_image.astype(np.float), alpha_mask3d / 255))
-    bgra = cv2.cvtColor(original_image, cv2.COLOR_BGR2BGRA)
+                     cv2.multiply(duplicate_image.astype(np.float), alpha_mask3d / 255))
+    bgra = cv2.cvtColor(duplicate_image, cv2.COLOR_BGR2BGRA)
     bgra[:, :, 3] = alpha_mask
     return result
 
 
 def convert_video(video, background_image, out_path):
-    global selected_hsv
+    global selected_hsvs
     global tolerance
 
     fps = math.ceil(video.get(cv2.CAP_PROP_FPS))
@@ -191,9 +203,10 @@ def convert_video(video, background_image, out_path):
         print("frame: " + str(i))
         ret, frame = video.read()
         if ret:
-            matted_image = generate_matted_image(frame, selected_hsv,
+            matted_image = generate_matted_image(frame, selected_hsvs,
                                                  tolerance, background_image)
             out.write(np.uint8(matted_image))
+            cv2.imwrite("matted"+str(i), matted_image)
         else:
             print("finished")
             break
@@ -220,22 +233,36 @@ def on_color_cast_level(ccl):
 
 def select_background_color(action, x, y, flags, userdata):
     global frame
-    global selected_hsv
     global background_image
     global tolerance
-
+    global selected_hsvs
+    global preview
+    selected_hsv = np.array([0, 0, 0]).astype(np.uint8)
     if action == cv2.EVENT_LBUTTONDOWN:
         hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         h, s, v = cv2.split(hsv_frame)
         selected_hsv[0] = np.mean(h[y - 10:y + 10, x - 10:x + 10])
         selected_hsv[1] = np.mean(s[y - 10:y + 10, x - 10:x + 10])
         selected_hsv[2] = np.mean(v[y - 10:y + 10, x - 10:x + 10])
-        matted_image = generate_matted_image(frame, selected_hsv,
-                                             tolerance, background_image)
-        cv2.imshow("result", matted_image.astype(np.uint8))
-        cv2.waitKey(0)
+        selected_hsvs.append(selected_hsv)
+        preview[y - 10:y + 10, x - 10:x + 10] = np.array([0, 0, 255]).astype(np.uint8)
+        cv2.imshow("Chroma_keying", preview)
 
 
+def show_preview():
+    global frame
+    global selected_hsvs
+    global background_image
+    global tolerance
+    matted_image = generate_matted_image(frame, selected_hsvs,
+                                         tolerance, background_image)
+    cv2.imshow("result", matted_image.astype(np.uint8))
+    cv2.waitKey(0)
+
+
+print("select background colors using the mouse left click")
+print("show preview of first frame by pressing p")
+print("convert whole video by pressing t")
 cap = cv2.VideoCapture('greenscreen-demo.mp4')
 cv2.namedWindow("Chroma_keying")
 # highgui function called when mouse events occur
@@ -247,10 +274,10 @@ k = 0
 # loop until escape character is pressed
 ret, frame = cap.read()
 preview = frame.copy()
-selected_hsv = np.array([0, 0, 0])
 tolerance = 0
 softness_level = 1
 color_cast_level = 0
+selected_hsvs = []
 try:
     background_image = cv2.imread("background.jpg")
     background_image = cv2.resize(background_image, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_AREA)
@@ -265,6 +292,8 @@ while k != 27:
     # print(k)
     if k == 116:
         convert_video(cap, background_image, out_path="matted.avi")
+    elif k == 112:
+        show_preview()
 
 cv2.destroyAllWindows()
 cap.release()
