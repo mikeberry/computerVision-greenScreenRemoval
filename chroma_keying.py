@@ -47,13 +47,12 @@ def has_similar_bgr(A, B):
 
 def generate_matted_image(original_image, selected_background_hsvs, tolerance, new_background_image):
     duplicate_image = original_image.copy()
-    print("generate_matted_image")
     trimap = np.ones(original_image.shape[0:2]) * 127
     hsv_frame = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
     i_h, i_s, i_v = cv2.split(hsv_frame)
     hb = np.zeros((frame.shape[0], frame.shape[1]))
     for selected_background_hsv in selected_background_hsvs:
-        print(selected_background_hsv)
+        # print(selected_background_hsv)
         hb = np.logical_or(hb, np.where(
             (i_h <= selected_background_hsv[0] + tolerance) & (i_h >= selected_background_hsv[0] - tolerance), 1,
             0))
@@ -78,10 +77,10 @@ def generate_matted_image(original_image, selected_background_hsvs, tolerance, n
         return_counts=True)
     background_colors = background_colors[tuple(counts.reshape(1, -1) > 10000)]
     counts = counts[tuple(counts.reshape(1, -1) > 10000)]
-    print(background_colors)
-    print(counts)
-    print(background_colors.shape)
-    print(counts.shape)
+    # print(background_colors)
+    # print(counts)
+    # print(background_colors.shape)
+    # print(counts.shape)
     match = np.array([np.in1d(frame[:, :, 0], background_colors[:, 0]),
                       np.in1d(frame[:, :, 1], background_colors[:, 1]),
                       np.in1d(frame[:, :, 2], background_colors[:, 2])])
@@ -97,7 +96,6 @@ def generate_matted_image(original_image, selected_background_hsvs, tolerance, n
     progress = 0
     h = trimap.shape[0]
     w = trimap.shape[1]
-    print("softness level:" + str(softness_level))
     for i in range(0, len(ys)):
         x = xs[i]
         y = ys[i]
@@ -162,7 +160,6 @@ def generate_matted_image(original_image, selected_background_hsvs, tolerance, n
     # print(alpha_mask)
     cv2.namedWindow("trimap")
     cv2.imshow("trimap", trimap)
-    cv2.namedWindow("result")
 
     # pivot points for X-Coordinates
     original_value = np.array([0, 50, 100, 150, 200, 255])
@@ -206,7 +203,8 @@ def convert_video(video, background_image, out_path):
             matted_image = generate_matted_image(frame, selected_hsvs,
                                                  tolerance, background_image)
             out.write(np.uint8(matted_image))
-            cv2.imwrite("matted"+str(i), matted_image)
+            tmp_img_name = "matted" + str(i) + ".jpg"
+            cv2.imwrite(tmp_img_name, np.uint8(matted_image))
         else:
             print("finished")
             break
@@ -256,6 +254,7 @@ def show_preview():
     global tolerance
     matted_image = generate_matted_image(frame, selected_hsvs,
                                          tolerance, background_image)
+    cv2.namedWindow("result")
     cv2.imshow("result", matted_image.astype(np.uint8))
     cv2.waitKey(0)
 
