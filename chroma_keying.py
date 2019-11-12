@@ -17,9 +17,6 @@ def dist_rgb(c1, c2):
 
 
 def min_dist_color(img, mask, reference_color):
-    # print(mask.shape)
-    # print(img.shape)
-    # mask = mask.reshape((1, mask.shape[0], mask.shape[1]))
     arr = img[tuple(mask == 1)]
     if len(arr) == 0:
         return reference_color
@@ -28,8 +25,8 @@ def min_dist_color(img, mask, reference_color):
     # the corrected distance would be:
     # dist = math.pow(math.pow(dist_b, 2) + math.pow(dist_g, 2) + math.pow(dist_r, 2), 1 / 4)
     # however the power 1/4 is not required to find the smallest number
-    minArg = np.argmin(np.power(diff[:, 0], 2) + np.power(diff[:, 1], 2) + np.power(diff[:, 2], 2))
-    return arr[minArg]
+    min_arg = np.argmin(np.power(diff[:, 0], 2) + np.power(diff[:, 1], 2) + np.power(diff[:, 2], 2))
+    return arr[min_arg]
 
 
 def has_similar_bgr(A, B):
@@ -52,7 +49,6 @@ def generate_matted_image(original_image, selected_background_hsvs, tolerance, n
     i_h, i_s, i_v = cv2.split(hsv_frame)
     hb = np.zeros((frame.shape[0], frame.shape[1]))
     for selected_background_hsv in selected_background_hsvs:
-        # print(selected_background_hsv)
         hb = np.logical_or(hb, np.where(
             (i_h <= selected_background_hsv[0] + tolerance) & (i_h >= selected_background_hsv[0] - tolerance), 1,
             0))
@@ -76,7 +72,7 @@ def generate_matted_image(original_image, selected_background_hsvs, tolerance, n
         frame[tuple(background_mask.reshape(1, background_mask.shape[0], background_mask.shape[1]) == 1)], axis=0,
         return_counts=True)
     background_colors = background_colors[tuple(counts.reshape(1, -1) > 10000)]
-    counts = counts[tuple(counts.reshape(1, -1) > 10000)]
+    # counts = counts[tuple(counts.reshape(1, -1) > 10000)]
     # print(background_colors)
     # print(counts)
     # print(background_colors.shape)
@@ -196,7 +192,7 @@ def convert_video(video, background_image, out_path):
     # Define the codec and create VideoWriter object.The output is stored in 'outpy.avi' file.
     out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), fps, (frame_width, frame_height))
     i = 0
-    while (True):
+    while True:
         print("frame: " + str(i))
         ret, frame = video.read()
         if ret:
@@ -259,40 +255,42 @@ def show_preview():
     cv2.waitKey(0)
 
 
-print("select background colors using the mouse left click")
-print("show preview of first frame by pressing p")
-print("convert whole video by pressing t")
-cap = cv2.VideoCapture('greenscreen-demo.mp4')
-cv2.namedWindow("Chroma_keying")
-# highgui function called when mouse events occur
-cv2.setMouseCallback("Chroma_keying", select_background_color)
-cv2.createTrackbar("color_tolerance", "Chroma_keying", 0, 100, on_color_tolerance)
-cv2.createTrackbar("softness_level", "Chroma_keying", 0, 100, on_softness)
-cv2.createTrackbar("color_cast_level", "Chroma_keying", 0, 100, on_color_cast_level)
-k = 0
-# loop until escape character is pressed
-ret, frame = cap.read()
-preview = frame.copy()
-tolerance = 0
-softness_level = 1
-color_cast_level = 0
-selected_hsvs = []
-try:
+if __name__ == "__main__":
+
+    print("select background colors using the mouse left click")
+    print("show preview of first frame by pressing p")
+    print("convert whole video by pressing t")
+    cap = cv2.VideoCapture('greenscreen-demo.mp4')
+    cv2.namedWindow("Chroma_keying")
+    # highgui function called when mouse events occur
+    cv2.setMouseCallback("Chroma_keying", select_background_color)
+    cv2.createTrackbar("color_tolerance", "Chroma_keying", 0, 100, on_color_tolerance)
+    cv2.createTrackbar("softness_level", "Chroma_keying", 0, 100, on_softness)
+    cv2.createTrackbar("color_cast_level", "Chroma_keying", 0, 100, on_color_cast_level)
+    k = 0
+    # loop until escape character is pressed
+    ret, frame = cap.read()
+    preview = frame.copy()
+    tolerance = 0
+    softness_level = 1
+    color_cast_level = 0
+    selected_hsvs = []
     background_image = cv2.imread("background.jpg")
-    background_image = cv2.resize(background_image, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_AREA)
-except:
-    print("could not find background.jpg. Assuming white background")
-    background_image = white = (np.ones(frame.shape) * 255).astype(np.uint8)
+    if background_image is not None:
+        background_image = cv2.resize(background_image, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_AREA)
+    else:
+        print("could not find background.jpg. Assuming white background")
+        background_image = white = (np.ones(frame.shape) * 255).astype(np.uint8)
 
-while k != 27:
-    cv2.imshow("Chroma_keying", preview)
+    while k != 27:
+        cv2.imshow("Chroma_keying", preview)
 
-    k = cv2.waitKey(20) & 0xFF
-    # print(k)
-    if k == 116:
-        convert_video(cap, background_image, out_path="matted.avi")
-    elif k == 112:
-        show_preview()
+        k = cv2.waitKey(20) & 0xFF
+        # print(k)
+        if k == 116:
+            convert_video(cap, background_image, out_path="matted.avi")
+        elif k == 112:
+            show_preview()
 
-cv2.destroyAllWindows()
-cap.release()
+    cv2.destroyAllWindows()
+    cap.release()
