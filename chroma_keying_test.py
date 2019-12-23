@@ -7,4 +7,4 @@ def test_dist_rgb():
     a = np.array([123, 230, 5])
     b = np.array([13, 24, 255])
     dist = chroma_keying.dist_rgb(a, b)
-    assert dist == pytest.approx(342.1, 0.1)
+    assert dist == pytest.approx(291.1, 0.1)
